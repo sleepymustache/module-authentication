@@ -40,8 +40,8 @@ class User extends \Module\DB\Record {
 	public $metadata;
 
 	/**
-	 * The users Role ID
-	 * @var int
+	 * The users Role
+	 * @var Role
 	 */
 	private $role;
 
@@ -60,7 +60,6 @@ class User extends \Module\DB\Record {
 	 */
 	public function authenticate($email, $pass) {
 		$pass = crypt($pass, $this->salt);
-
 		$query = $this->db->prepare("SELECT * FROM users WHERE email=:email AND password=:pass");
 		$query->execute(array(
 			':email' => $email,
@@ -81,7 +80,11 @@ class User extends \Module\DB\Record {
 	 * @param  string $key What role do you want to query?
 	 * @return string the value associated with the permission e.g. True, False, etc.
 	 */
-	public function getPermission($key) {
+	public function hasPermission($key) {
+		if (!isset($this->role)) {
+			throw \Exception('Role has not been set.');
+		}
+
 		return $this->role->getPermission($key);
 	}
 
@@ -166,6 +169,7 @@ class User extends \Module\DB\Record {
 			throw new \Exception('The user already exists.');
 		} else {
 			parent::save();
+			$this->load($this->columns['id']);
 		}
 	}
 
@@ -196,7 +200,7 @@ class User extends \Module\DB\Record {
 	 * @return boolean True, if role_id ==  1
 	 */
 	public function isAdmin() {
-		if (!$uid = $this->isLoggedIn()) {
+		if (!$this->isLoggedIn()) {
 			return false;
 		}
 
@@ -277,10 +281,14 @@ class Role extends \Module\DB\Record {
 		if (isset($this->_permissions[$key])) {
 			$this->_permissions[$key] = $value;
 		} else {
+			// Create a new permission
 			$temp = new Permission();
 			$temp->columns['key'] = $key;
 			$temp->columns['value'] = $value;
 			$temp->save();
+
+			// Add it to the permissions array
+			array_push($this->_permissions, $temp);
 		}
 	}
 }
