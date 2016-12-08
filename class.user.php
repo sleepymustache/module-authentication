@@ -1,7 +1,7 @@
 <?php
 namespace Module\Authentication;
 
-require_once(DIRBASE . '/modules/enabled/db/class.record.php');
+require_once(DIRBASE . '/modules/db/class.record.php');
 
 /**
  * Example of using the User module
