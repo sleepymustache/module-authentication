@@ -45,31 +45,29 @@ class User extends \Module\DB\Record {
 	 */
 	private $role;
 
-
-	/**
-	 * The salt for password encryption
-	 * @var string
-	 */
-	private $salt = 'o_PXO=1-BCTkq>|>*}KmkM8CA-!x|J6Y/UyDJC#ph(*A6me>CJ1Uu8E7gye|Vek[';
-
 	/**
 	 * Authenticates a user
 	 * @param  string $email The username
 	 * @param  string $pass  The password
 	 * @return int           The user_id
 	 */
-	public function authenticate($email, $pass) {
-		$pass = crypt($pass, $this->salt);
-		$query = $this->db->prepare("SELECT * FROM users WHERE email=:email AND password=:pass");
+	public function authenticate($email, $password) {
+
+		$query = $this->db->prepare("SELECT * FROM users WHERE email=:email");
 		$query->execute(array(
-			':email' => $email,
-			':pass' => $pass
+			':email' => $email
 		));
 		$query->setFetchMode(\PDO::FETCH_ASSOC);
 
 		if ($row = $query->fetch()) {
 			$this->load($row['id']);
-			return $row['id'];
+			$hash = crypt($password, $row['password']);
+
+			if ($hash === $row['password']) {
+				return $row['id'];
+			} else {
+				throw new \Exception("Invalid user or password.");
+			}
 		} else {
 			throw new \Exception("Invalid user or password.");
 		}
@@ -152,25 +150,30 @@ class User extends \Module\DB\Record {
 	 * @param  string $pass The password
 	 * @return string       The encrypted password
 	 */
-	public function saltPassword($pass) {
-		return crypt($pass, $this->salt);
-	}
+	public function saltPassword($password, $cost=11) {
+		/* To generate the salt, first generate enough random bytes. Because
+		 * base64 returns one character for each 6 bits, the we should generate
+		 * at least 22*6/8=16.5 bytes, so we generate 17. Then we get the first
+		 * 22 base64 characters
+		 */
+		$salt=substr(base64_encode(openssl_random_pseudo_bytes(17)),0,22);
+		/* As blowfish takes a salt with the alphabet ./A-Za-z0-9 we have to
+		 * replace any '+' in the base64 string with '.'. We don't have to do
+		 * anything about the '=', as this only occurs when the b64 string is
+		 * padded, which is always after the first 22 characters.
+		 */
+		$salt=str_replace("+",".",$salt);
+		/* Next, create a string that will be passed to crypt, containing all
+		 * of the settings, separated by dollar signs
+		 */
+		$param='$'.implode('$', array(
+			"2y", //select the most secure version of blowfish (>=PHP 5.3.7)
+			str_pad($cost,2,"0",STR_PAD_LEFT), //add the cost in two digits
+			$salt //add the salt
+		));
 
-	/**
-	 * Saves the user
-	 * @return void
-	 */
-	public function save() {
-		$query = $this->db->prepare("SELECT * from users where email=:email");
-		$query->setFetchMode(\PDO::FETCH_ASSOC);
-		$query->execute(array(':email' => $this->columns['email']));
-
-		if ($query->fetch()) {
-			throw new \Exception('The user already exists.');
-		} else {
-			parent::save();
-			$this->load($this->columns['id']);
-		}
+		//now do the actual hashing
+		return crypt($password,$param);
 	}
 
 	/**
