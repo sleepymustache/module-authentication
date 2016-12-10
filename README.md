@@ -50,6 +50,7 @@ To get started with the User class. You must first run the sql script included. 
 		$u->load(1); // Load user with ID 1
 		$u->setUserData('title', 'Web Developer');
 		$u->setUserData('salary', 200000);
+		$u->save();
 	} catch (\Exception $e) {
 		echo $e->getMessage();
 	}
